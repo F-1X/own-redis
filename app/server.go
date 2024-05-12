@@ -5,7 +5,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"strings"
 )
 
 func main() {
@@ -25,7 +24,7 @@ func main() {
 		}
 
 		buf := make([]byte, 0, 4096) // big buffer
-		tmp := make([]byte, 256)       // using small tmo buffer for demonstrating
+		tmp := make([]byte, 256)     // using small tmo buffer for demonstrating
 		for {
 			n, err := conn.Read(tmp)
 			if err != nil {
@@ -35,10 +34,12 @@ func main() {
 				break
 			}
 
-			cmd := strings.Split(string(tmp), "\r\n")
-			if cmd[2] == "PING" {
-				conn.Write([]byte("+PONG\r\n"))
-			}
+			// cmd := strings.Split(string(tmp), "\r\n")
+			// if cmd[2] == "PING" {
+			// 	conn.Write([]byte("+PONG\r\n"))
+			// 	conn.Close()
+			// }
+			conn.Write([]byte("+PONG\r\n"))
 			buf = append(buf, tmp[:n]...)
 		}
 
