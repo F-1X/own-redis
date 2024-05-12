@@ -28,6 +28,9 @@ const (
 	CR   = '\r'
 	LF   = '\n'
 	CRLF = "\r\n"
+
+	EX = 0
+	PX = 0
 )
 
 func main() {
@@ -62,7 +65,6 @@ func acceptLoop(conn net.Conn) {
 		buf := make([]byte, n)
 		copy(buf, tmp)
 
-		
 		switch buf[0] {
 		case ARRAYS:
 			ret := ReadArray(buf)
@@ -76,6 +78,13 @@ func acceptLoop(conn net.Conn) {
 				conn.Write([]byte("+" + "PONG" + CRLF))
 				// conn.Close()
 			}
+		}
+
+		switch string(buf[0:3]) {
+		case "GET":
+
+		case "SET":
+			
 		}
 	}
 }
@@ -130,7 +139,6 @@ func ReadArray(d []byte) []string {
 
 		Sint, _ := strconv.Atoi(string(sizeString))
 		// пропускаем CRLF
-		
 
 		fmt.Println("Sint:", Sint, string(sizeString))
 		switch T {
@@ -146,7 +154,6 @@ func ReadArray(d []byte) []string {
 				data += string(c)
 			}
 			arrays = append(arrays, data)
-
 
 		default:
 			return []string{"unknown type"}
