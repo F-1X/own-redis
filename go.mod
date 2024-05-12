@@ -9,3 +9,5 @@
 module github.com/codecrafters-io/redis-starter-go
 
 go 1.22
+
+require github.com/go-playground/assert v1.2.1
