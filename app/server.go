@@ -76,17 +76,53 @@ func acceptLoop(conn net.Conn) {
 				conn.Close()
 			case "PING":
 				conn.Write([]byte("+" + "PONG" + CRLF))
-				// conn.Close()
+			case "SET":
+				if err := Cache.SETData(ret); err != nil {
+					conn.Write([]byte("-ERR" + "SOME ERROR" + CRLF))
+					conn.Close()
+				} else {
+					conn.Write([]byte("+" + "OK" + CRLF))
+				}
+			case "GET":
+				returnGET, err := Cache.GETData(ret)
+				if err != nil {
+					conn.Write([]byte("-ERR" + "SOME ERROR" + CRLF))
+					conn.Close()
+				}
+				conn.Write([]byte("+" + returnGET + CRLF))
 			}
 		}
-
-		switch string(buf[0:3]) {
-		case "GET":
-
-		case "SET":
-			
-		}
 	}
+}
+
+type Memory struct {
+	store map[string]string
+}
+
+var SIZE_DEF = 256
+
+var Cache = NewMemory(SIZE_DEF)
+
+func NewMemory(size int) *Memory {
+	return &Memory{
+		make(map[string]string, size),
+	}
+}
+
+func (m *Memory) GETData(s []string) (string, error) {
+	if _, ok := m.store[s[1]]; !ok {
+		return "empty", fmt.Errorf("not found")
+	}
+	return m.store[s[1]], nil
+}
+
+func (m *Memory) SETData(s []string) error {
+	
+	if _, ok := m.store[s[1]]; ok {
+		return fmt.Errorf("already exist")
+	}
+	m.store[s[1]] = s[2]
+	return nil
 }
 
 type RASP struct {
