@@ -7,7 +7,33 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
+	"time"
 )
+
+type keys_expired struct {
+	key     string
+	expired time.Duration
+}
+
+type Memory struct {
+	store map[string]string
+	ke    []keys_expired
+	mu    *sync.Mutex
+}
+
+var SIZE_DEF = 256
+
+var Cache = NewMemory(SIZE_DEF)
+
+func NewMemory(size int) *Memory {
+	return &Memory{
+		make(map[string]string, size),
+		[]keys_expired{},
+		&sync.Mutex{},
+	}
+}
 
 const (
 	SIMPLE_STRINGS   = '+'
@@ -78,7 +104,7 @@ func acceptLoop(conn net.Conn) {
 				conn.Write([]byte("+" + "PONG" + CRLF))
 			case "SET":
 				if err := Cache.SETData(ret); err != nil {
-					conn.Write([]byte("-ERR" + "SOME ERROR" + CRLF))
+					conn.Write([]byte("$-1\r\n"))
 					conn.Close()
 				} else {
 					conn.Write([]byte("+" + "OK" + CRLF))
@@ -86,43 +112,61 @@ func acceptLoop(conn net.Conn) {
 			case "GET":
 				returnGET, err := Cache.GETData(ret)
 				if err != nil {
-					conn.Write([]byte("-ERR" + "SOME ERROR" + CRLF))
-					conn.Close()
+					conn.Write([]byte("$-1\r\n"))
+					// conn.Close()
+				} else {
+					conn.Write([]byte("+" + returnGET + CRLF))
 				}
-				conn.Write([]byte("+" + returnGET + CRLF))
 			}
 		}
 	}
 }
 
-type Memory struct {
-	store map[string]string
-}
-
-var SIZE_DEF = 256
-
-var Cache = NewMemory(SIZE_DEF)
-
-func NewMemory(size int) *Memory {
-	return &Memory{
-		make(map[string]string, size),
-	}
-}
-
 func (m *Memory) GETData(s []string) (string, error) {
-	if _, ok := m.store[s[1]]; !ok {
+	register_any_key := strings.ToUpper(s[1])
+	fmt.Println("getGETData func", s[1], "register_any_key", register_any_key)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if _, ok := m.store[register_any_key]; !ok {
+		fmt.Println("not ok", m.store, ok, register_any_key)
 		return "empty", fmt.Errorf("not found")
 	}
-	return m.store[s[1]], nil
+	fmt.Println("its exist func", m.store, m.store[register_any_key])
+	return m.store[register_any_key], nil
 }
 
 func (m *Memory) SETData(s []string) error {
-	
-	if _, ok := m.store[s[1]]; ok {
+	//fmt.Println("setting key", s[1], "val", s[2], "mode", s[3], "after:", s[4])
+	m.mu.Lock()
+	register_any_key := strings.ToUpper(s[1])
+
+	if _, ok := m.store[register_any_key]; ok {
 		return fmt.Errorf("already exist")
 	}
-	m.store[s[1]] = s[2]
+	m.store[register_any_key] = s[2]
+	m.mu.Unlock()
+
+	if len(s) > 4 {
+		register_any := strings.ToUpper(s[3])
+		switch register_any {
+		case "PX":
+			t, _ := strconv.Atoi(s[4])
+			go m.addKeyExpited(register_any_key, time.Millisecond*time.Duration(t))
+		case "EX":
+			t, _ := strconv.Atoi(s[4])
+			go m.addKeyExpited(register_any_key, time.Second*time.Duration(t))
+		}
+	}
 	return nil
+}
+
+func (m *Memory) addKeyExpited(key string, expired time.Duration) {
+	// <-time.After(expired)
+	time.Sleep(expired)
+	m.mu.Lock()
+	delete(m.store, key)
+	m.mu.Unlock()
 }
 
 type RASP struct {
@@ -132,29 +176,28 @@ type RASP struct {
 }
 
 func ReadArray(d []byte) []string {
-	fmt.Println("all data:", string(d))
-	arrays := make([]string, 0, len(d))
+	//fmt.Println("all data:", string(d))
+
 	buffer := bytes.NewBuffer(d)
 
-	TA, err := buffer.ReadByte()
+	_, _ = buffer.ReadByte()
 	SA, err := buffer.ReadByte()
 	if err != nil {
 		return nil
 	}
-	fmt.Println("TA:", string(TA), TA)
+	// fmt.Println("TA:", string(TA), TA)
 
 	SAint, _ := strconv.Atoi(string(SA))
-	fmt.Println("SA:", string(SA), SA)
+	//fmt.Println("SA:", string(SA), SA)
 	_, _ = buffer.ReadByte()
 	_, _ = buffer.ReadByte()
-
+	var arrays []string
 	for e := 0; e < SAint; e++ {
 		// считываем ТИП и РАЗМЕР
 		T, err := buffer.ReadByte()
 		if err != nil {
 			break
 		}
-
 		sizeString := ""
 		for {
 			sByte, err := buffer.ReadByte()
@@ -174,21 +217,20 @@ func ReadArray(d []byte) []string {
 		}
 
 		Sint, _ := strconv.Atoi(string(sizeString))
-		// пропускаем CRLF
 
-		fmt.Println("Sint:", Sint, string(sizeString))
 		switch T {
 		case BULK_STRING:
 			data := ""
 			// читаем строку
 			for i := 0; i < Sint; i++ {
 				c, err := buffer.ReadByte()
-				fmt.Println("read some:", string(c))
+				// fmt.Println("read some:", string(c))
 				if err != nil {
 					break
 				}
 				data += string(c)
 			}
+			// fmt.Println("%x", data)
 			arrays = append(arrays, data)
 
 		default:
