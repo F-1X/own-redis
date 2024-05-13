@@ -61,17 +61,16 @@ const (
 
 func main() {
 
-
 	port := "6379"
 	for i, arg := range os.Args[1:] {
 		if arg == "--port" && i != len(os.Args)-1 {
 			_, err := strconv.Atoi(os.Args[i+2])
 			if err != nil {
-				fmt.Println("invalid port",os.Args[i+2])
+				fmt.Println("invalid port", os.Args[i+2])
 				return
 			}
 			port = os.Args[i+2]
-			i+=1
+			i += 1
 		}
 	}
 
@@ -128,9 +127,63 @@ func acceptLoop(conn net.Conn) {
 				} else {
 					conn.Write([]byte("+" + returnGET + CRLF))
 				}
+			case "INFO":
+				conn.Write([]byte(INFO()))
 			}
 		}
 	}
+
+}
+
+const (
+	role = iota
+	connected_slaves
+	master_replid
+	master_repl_offset
+	second_repl_offset
+	repl_backlog_active
+	repl_backlog_size
+	repl_backlog_first_byte_offset
+	repl_backlog_histlen
+)
+
+func INFO() string {
+	prepared := map[int]string{
+		role:                           "master",
+		connected_slaves:               "",
+		master_replid:                  "",
+		master_repl_offset:             "",
+		second_repl_offset:             "",
+		repl_backlog_active:            "",
+		repl_backlog_size:              "",
+		repl_backlog_first_byte_offset: "",
+		repl_backlog_histlen:           "",
+	}
+
+	prepared[role] = getROLE()
+	return INFOBuilder(prepared)
+
+}
+
+func getROLE() string {
+	return "master"
+}
+
+func INFOBuilder(c map[int]string) string {
+
+	lenght := 0
+	postfix := ""
+
+	for i := 0; i < len(c); i++ {
+		lenght += len(c[i])
+
+		postfix = c[i] + CRLF
+	}
+
+	prefix := "$" + fmt.Sprint(lenght) + CRLF
+
+	return prefix + postfix
+
 }
 
 func (m *Memory) GETData(s []string) (string, error) {
