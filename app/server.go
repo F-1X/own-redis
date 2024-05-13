@@ -60,9 +60,23 @@ const (
 )
 
 func main() {
-	fmt.Println("Logs from your program will appear here!")
 
-	l, err := net.Listen("tcp", "0.0.0.0:6379")
+
+	port := "6379"
+	for i, arg := range os.Args[1:] {
+		if arg == "--port" && i != len(os.Args)-1 {
+			_, err := strconv.Atoi(os.Args[i+2])
+			if err != nil {
+				fmt.Println("invalid port",os.Args[i+2])
+				return
+			}
+			port = os.Args[i+2]
+			i+=1
+		}
+	}
+
+	addr := "0.0.0.0:" + port
+	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		fmt.Println("Failed to bind to port 6379")
 		os.Exit(1)
@@ -94,10 +108,8 @@ func acceptLoop(conn net.Conn) {
 		switch buf[0] {
 		case ARRAYS:
 			ret := ReadArray(buf)
-			fmt.Println("ret", ret, len(ret))
 			switch ret[0] {
 			case "ECHO":
-				fmt.Println("d", ret, len(ret))
 				conn.Write([]byte("+" + ret[1] + CRLF))
 				conn.Close()
 			case "PING":
@@ -113,7 +125,6 @@ func acceptLoop(conn net.Conn) {
 				returnGET, err := Cache.GETData(ret)
 				if err != nil {
 					conn.Write([]byte("$-1\r\n"))
-					// conn.Close()
 				} else {
 					conn.Write([]byte("+" + returnGET + CRLF))
 				}
@@ -124,20 +135,16 @@ func acceptLoop(conn net.Conn) {
 
 func (m *Memory) GETData(s []string) (string, error) {
 	register_any_key := strings.ToUpper(s[1])
-	fmt.Println("getGETData func", s[1], "register_any_key", register_any_key)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if _, ok := m.store[register_any_key]; !ok {
-		fmt.Println("not ok", m.store, ok, register_any_key)
 		return "empty", fmt.Errorf("not found")
 	}
-	fmt.Println("its exist func", m.store, m.store[register_any_key])
 	return m.store[register_any_key], nil
 }
 
 func (m *Memory) SETData(s []string) error {
-	//fmt.Println("setting key", s[1], "val", s[2], "mode", s[3], "after:", s[4])
 	m.mu.Lock()
 	register_any_key := strings.ToUpper(s[1])
 
@@ -147,7 +154,7 @@ func (m *Memory) SETData(s []string) error {
 	m.store[register_any_key] = s[2]
 	m.mu.Unlock()
 
-	if len(s) > 4 {
+	if len(s) > 3 {
 		register_any := strings.ToUpper(s[3])
 		switch register_any {
 		case "PX":
