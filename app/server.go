@@ -128,7 +128,9 @@ func acceptLoop(conn net.Conn) {
 					conn.Write([]byte("+" + returnGET + CRLF))
 				}
 			case "INFO":
-				conn.Write([]byte(INFO()))
+				info := INFO()
+				// fmt.Print(info)
+				conn.Write([]byte(info))
 			}
 		}
 	}
@@ -147,9 +149,21 @@ const (
 	repl_backlog_histlen
 )
 
+var x = map[int]string{
+	0: "role",
+	1: "connected_slaves",
+	2: "master_replid",
+	3: "master_repl_offset",
+	4: "second_repl_offset",
+	5: "repl_backlog_active",
+	6: "repl_backlog_size",
+	7: "repl_backlog_first_byte_offset",
+	8: "repl_backlog_histlen",
+}
+
 func INFO() string {
 	prepared := map[int]string{
-		role:                           "master",
+		role:                           "",
 		connected_slaves:               "",
 		master_replid:                  "",
 		master_repl_offset:             "",
@@ -171,18 +185,26 @@ func getROLE() string {
 
 func INFOBuilder(c map[int]string) string {
 
-	lenght := 0
 	postfix := ""
 
+	answer := ""
+
 	for i := 0; i < len(c); i++ {
-		lenght += len(c[i])
+		lp := len(x[i])
 
-		postfix = c[i] + CRLF
+		lp += 1
+		lp += len(c[i])
+		ll := strconv.Itoa(lp)
+
+		prefix := "$" + ll + CRLF
+
+		postfix = string(x[i]) + ":" + c[i] + CRLF
+
+		answer += prefix + postfix
 	}
-
-	prefix := "$" + fmt.Sprint(lenght) + CRLF
-
-	return prefix + postfix
+	// fmt.Println("resulft")
+	// fmt.Println(answer)
+	return answer
 
 }
 
